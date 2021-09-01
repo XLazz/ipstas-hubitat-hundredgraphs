@@ -608,7 +608,7 @@ private getLogCatchUpFrequencySettingMS() {
 }
 
 def hubInfo(){
-    def hub = location.hub
+    def hub = location.hubs[0]
 
     logWarn "${app.label} hub id: ${hub.id}"
     logWarn "${app.label} zigbeeId: ${hub.zigbeeId}"
@@ -1034,8 +1034,7 @@ def processLogEventsResponse(response, data) {
 		state.loggingStatus.details = "${response?.status}, check your URL settings"
 		logTrace "${app.label} Response: ${state.loggingStatus.details}"
 	} else if (response?.status == 402) {
-		state.loggingStatus.details = "you are using extended features requiring payment. Reporting interval was switched to 600 secs. Response: ${response?.status}, ${response?.errorMessage}"
-		
+		state.loggingStatus.details = "you are using extended features requiring payment. Reporting interval was switched to 600 secs. Response: ${response?.status}, ${response?.errorMessage}"		
 		try{
 			def interval = new Date(status?.end) - new Date(status?.start)
 			def logFrequency = settings?.logFrequency
@@ -1065,8 +1064,9 @@ def processLogEventsResponse(response, data) {
 	updateLoggingStatus(state, response)
 }
 private postEventsToLogger(status, sender, events) {
-	def hub = location.hub
-	logTrace "${app.label} Hub: ${hub}/${hub?.id}/${hub?.hardwareID}/${hub?.zigbeeId} data: ${hub?.data}  "
+	def hub = location.hubs[0]
+	def hub.hubid = hubUID
+	logTrace "${app.label} Hub: ${hub}/${hub?.id}/${hub?.hardwareID}/${hub?.zigbeeId}/${hub?.hubid} data: ${hub?.data} "
 	def jsonOutput = new groovy.json.JsonOutput()
 	def jsonData = [		
 		version: "${version()}",
