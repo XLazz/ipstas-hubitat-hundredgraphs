@@ -55,7 +55,7 @@
  *
  */
  
-include 'asynchttp_v1'
+//include 'asynchttp_v1'
 import groovy.json.JsonBuilder
 import groovy.json.JsonOutput;
 
@@ -67,7 +67,8 @@ definition(
     category: "My Apps",
     iconUrl: "https://res.cloudinary.com/orangry/image/upload/c_scale,w_30/v1554557246/hundredgraphs/HundredGraphs_620x620.png",
     iconX2Url: "https://res.cloudinary.com/orangry/image/upload/c_scale,w_60/v1554557246/hundredgraphs/HundredGraphs_620x620.png",
-    iconX3Url: "https://res.cloudinary.com/orangry/image/upload/c_scale,w_100/v1554557246/hundredgraphs/HundredGraphs_620x620.png")
+    iconX3Url: "https://res.cloudinary.com/orangry/image/upload/c_scale,w_100/v1554557246/hundredgraphs/HundredGraphs_620x620.png"
+)
 		
 preferences {
 	page(name: "mainPage")
@@ -79,8 +80,13 @@ preferences {
 	//page(name: "createTokenPage")
 }
 
+def appName(){ 
+	return "Hubitat"
+}
+def version(){	
+	return "00.00.14"
+}
 
-def version() { return "00.00.12" }
 //def gsVersion() { return "00.00.01" }
 
 def mainPage() {
@@ -156,7 +162,7 @@ private getLoggingStatusContent() {
             paragraph required: false,
 				"Upload: ${status?.result}"
             paragraph required: false,
-				"Events Logged: ${status.eventsLogged} \nLast Execution:\n - HTTP code: ${status.code}\n - Events From: ${status.start}\n - Events To: ${status.end}\n - Run Time: ${status.runTime}\n - Dropped: ${status.dropped}"      
+				"Events Logged: ${status.eventsLogged} \nLast Execution:\n - HTTP code: ${status.code}\n - Events From: ${status.start}\n - Events To: ${status.end}\n - Run Time: ${status.runTime}\n - count: ${status.count}"    
         }
 	} else {
     	def status = getFormattedLoggingStatus();
@@ -430,7 +436,7 @@ private buildSummary(items) {
 	def summary = ""
 	items?.each {
 		summary += summary ? "\n" : ""
-		summary += "   ${it}"
+		summary += "${it}"
 	}
 	return summary
 }
@@ -469,7 +475,7 @@ def updated() {
 	//initializeAppEndpoint()
 	
 	logInfo "${app.label} [updated] freq: ${settings?.logFrequency}, url: ${settings?.loggerAppUrl}"	
-	state.app = "SmartThings"
+	state.app = "Hubitat"
 
 	//state.version = ${version()}
 
@@ -602,9 +608,9 @@ private getLogCatchUpFrequencySettingMS() {
 }
 
 def hubInfo(){
-    def hub = location.hubs[0]
+    def hub = location.hub
 
-    logWarn "${app.label} id: ${hub.id}"
+    logWarn "${app.label} hub id: ${hub.id}"
     logWarn "${app.label} zigbeeId: ${hub.zigbeeId}"
     logWarn "${app.label} zigbeeEui: ${hub.zigbeeEui}"
 
@@ -620,56 +626,14 @@ def hubInfo(){
 }
 
 
-private getArchiveOptions() {
+/* private getArchiveOptions() {
 	return [
 		logIsFull: (state.loggingStatus?.logIsFull ? true : false),
 		type: (settings?.archiveType ?: ""),
 		interval: safeToLong(settings?.archiveInterval, 50000)
 	]
-}
+} */
 
-def processLogEventsResponse(response, data) {
-	if (response?.status == 200) {
-		//logTrace "${app.label} ${getWebAppName()} response.status: ${response.status}, response.data: ${response.data}"
-		state.loggingStatus.success = true
-		state.loggingStatus.finished = new Date().time
-	} else if (response?.status == 301) {
-		state.loggingStatus.details = "${response?.status}, check your URL settings"
-		logTrace "${app.label} Response: ${state.loggingStatus.details}"
-	} else if (response?.status == 302) {
-		state.loggingStatus.details = "${response?.status}, check your URL settings"
-		logTrace "${app.label} Response: ${state.loggingStatus.details}"
-	} else if (response?.status == 402) {
-		state.loggingStatus.details = "you are using extended features requiring payment. Reporting interval was switched to 600 secs. Response: ${response?.status}, ${response?.errorMessage}"
-		
-		try{
-			def interval = new Date(status?.end) - new Date(status?.start)
-			def logFrequency = settings?.logFrequency
-		}catch(err){
-			logTrace "${app.label} [processLogEventsResponse err] interval: ${err}, status: ${status}"
-		}
-/* 		if (logFrequency != "10 Minutes")
-			logFrequency = 10 */
-
-		logTrace "${app.label} [processLogEventsResponse] interval ${interval} ${logFrequency}"
-		
-		//unschedule(logNewEvents)
-		//runEvery10Minutes(logNewEvents)
-
-	} else if (response?.status == 408) {
-		state.loggingStatus.details = "${response?.status}, ${response?.errorMessage}"
-	} else if (response?.status == 429) {
-		state.loggingStatus.details "${response?.status}, ${response?.errorMessage}"
-        //logWarn "${app.label} ${getWebAppName()} [processLogEventsResponse]2 Response.data: ${response.errorJson}"
-	} else if (response?.status == 501) {
-		state.loggingStatus.details = "${response?.status}. Timeout while waiting for HundredGraphs"
-	} else {
-		state.loggingStatus.details = "${response?.status}, response.data: ${response?.data}, ${response?.errorMessage}"
-	}
-	//logTrace "${app.label} Response: ${state?.loggingStatus?.details}"
-	//logTrace "${app.label} ${getWebAppName()} response.status: ${response.status} "
-	updateLoggingStatus(state, response)
-}
 
 private initializeAppEndpoint() {		
 	try {
@@ -699,6 +663,7 @@ mappings {
 	}	
 }
 
+//about logging
 def updateLoggingStatus(state, response) {
 	def status = state.loggingStatus ?: [:]
 	def data
@@ -737,7 +702,7 @@ def updateLoggingStatus(state, response) {
     	data = json
 		status.success = data?.res      
         status.details = data.details ?: ''
-        status.dropped = data.dropped ?: ''
+        status.count = data.count ?: ''
 		//status.eventsArchived = data.eventsArchived
 		//status.logIsFull = data.logIsFull
 		//status.gsVersion = data.version
@@ -764,7 +729,6 @@ def updateLoggingStatus(state, response) {
 	//logTrace new JsonBuilder( data?.dropped ).toPrettyString() 
 	logLoggingStatus()
 }
-
 private logLoggingStatus() {
 	//logTrace "[logLoggingStatus]0 state: ${state}"
 	def status = getFormattedLoggingStatus()
@@ -787,7 +751,6 @@ private logLoggingStatus() {
 	//logTrace "HG hookVersion: ${state.loggingStatus?.hookVersion}, Total Events Logged: ${status.totalEventsLogged}, Used Space: ${status.usedSpace} records"
 	//logTrace "HG hookVersion: ${state.loggingStatus?.hookVersion}, Used Space: ${status.usedSpace} records"
 }
-
 private getFormattedLoggingStatus() {
 	def status = state.loggingStatus ?: [:]
     //logTrace "[getFormattedLoggingStatus] status: ${status}"
@@ -800,7 +763,7 @@ private getFormattedLoggingStatus() {
 		runTime: "${((safeToLong(status.finished) - safeToLong(status.started)) / 1000)} seconds",
 		eventsLogged: "${String.format('%s', status.eventsLogged)}",
         details: "${String.format('%s', status.details)}",
-        dropped: "${String.format('%s', status.dropped)}",
+        count: "${String.format('%s', status.count)}",
 		//totalEventsLogged: "${String.format('%,d', safeToLong(status.totalEventsLogged))}"
 		//usedSpace: status.usedSpace
 	]
@@ -813,16 +776,18 @@ private getInitEvents() {
 	
 	getSelectedDevices()?.each  { device ->
 		getDeviceAllowedAttrs(device?.displayName)?.each { attr ->
-			//logTrace "checking device: ${device?.displayName} ${attr}"
+			//logTrace "checking device: ${device?.displayName} ${attr} ${device?.device}"
 			device.currentState("${attr}")?.each { event ->
 				events << [
 					time: event.date?.time,
 					//time: event.date,
 					id: device.id,
 					type: "${attr}",
+					roomNum: device.device.groupId,
+					//roomName: device?.group,
 					key: device.displayName,
 					value: event.value,
-					//desc: getEventDesc(event)
+					desc: getEventDesc(event)
 				]
 			}
 		}
@@ -837,16 +802,22 @@ private getCurrentEvents() {
 	def events = []
 	
 	getSelectedDevices()?.each  { device ->
+		logTrace "checking device1 name: ${device?.displayName} device: ${device?.device}"
+	}
+	
+	getSelectedDevices()?.each  { device ->
 		getDeviceAllowedAttrs(device?.displayName)?.each { attr ->
-			//logTrace "checking device: ${device?.displayName} ${attr}"
+			//logTrace "checking device: ${device?.displayName} ${attr} ${device?.device}"
 			device.currentState("${attr}")?.each { event ->
 				events << [
 					time: new Date(),
 					id: device.id,
 					type: "${attr}",
+					roomNum: device.device.groupId,
+					//roomName: device?.group,
 					key: device.displayName,
 					value: event.value,
-					//desc: getEventDesc(event)
+					desc: getEventDesc(event)
 				]
 			}
 		}
@@ -859,27 +830,70 @@ private getCurrentEvents() {
 private getNewEvents(startDate, endDate) {	
 	
 	def events = []
+
 	
 	getSelectedDevices()?.each  { device ->
-		getDeviceAllowedAttrs(device?.displayName)?.each { attr ->
-			//logTrace "checking device: ${device?.displayName} ${attr}"
-			device.statesBetween("${attr}", startDate, endDate, [max: maxEventsSetting])?.each { event ->
+		logTrace "checking device2 name: ${device?.displayName} device: ${device?.device}"
+/* 		try{
+			device?.device?.each { out ->
+				logTrace "checking device3: ${out}"
+			}	
+		} catch (err) {
+			logTrace "checking device ERR: ${device?.displayName} ${err}"
+		} */
+	}
+
+	getSelectedDevices()?.each  { device ->
+		logTrace "checking device3 ${device?.displayName} dev: ${device}"
+		getDeviceAllowedAttrs(device?.displayName)?.each { attr ->		
+			//def states = device.statesSince("${attr}", new Date(0))
+			def states = device.statesSince("${attr}", startDate)
+			//def states = device.statesSince("${attr}", startDate, [max: maxEventsSetting])
+			//logTrace "checking states ${device?.displayName} states: ${states}"
+			states?.each { event ->
+				//logTrace "checking atrr1: ${attr}"
+				//logTrace "checking atrr2: ${attr} event: ${event}"
+				//logTrace "checking atrr2: ${attr} date: ${event?.date}"
+				//logTrace "checking atrr2: ${attr} id: ${event?.id}"
+				//logTrace "checking atrr2: ${attr} name: ${event?.name}"
+				//logTrace "checking atrr2: ${attr} value: ${event?.value}"
+				//logTrace "checking atrr2: ${attr} unit: ${event?.unit}"
+				//logTrace "checking atrr2: ${attr} groupId: ${device?.device?.groupId}"
+				//logTrace "checking atrr2: ${attr} desc: ${getEventDesc(event)}"
+				events << [
+						//time: event.date?.time,
+						time: event.date,
+						id: device.deviceNetworkId,
+						key: device.name,
+						type: "${attr}",					
+						//roomName: device.device.roomId,
+						
+						value: event.value,
+						unit: event.unit,
+						roomNum: device?.device?.groupId,
+						desc: getEventDesc(event),
+					]
+			} 
+/* 			device.statesBetween("${attr}", startDate, endDate, [max: maxEventsSetting])?.each { event ->
 				events << [
 					//time: event.date?.time,
 					time: event.date,
 					id: event.deviceId,
 					type: "${attr}",
+					roomNum: device.device.groupId,
+					//roomName: device.device.roomId,
 					key: device.displayName,
 					value: event.value,
 					desc: getEventDesc(event)
 				]
-			}
+			} */
 		}
 	}
     logDebug "${app.label} [getNewEvents] Retrieving Events from ${startDate} to ${endDate} count: ${events?.size}"
 	logTrace "${app.label} [getNewEvents] Retrieving Events from ${startDate} to ${endDate} ${events}"
 	return events?.unique()?.sort { it.time }
 }
+
 // upload events
 def logInitEvents() {
 	def sender = 'logInitEvents'
@@ -896,6 +910,8 @@ def logInitEvents() {
 	status.eventsArchived = null
 	status.eventsLogged = 0
 	status.started = new Date().time
+	status.lastEventTime = status.started
+	status.fullEventTime = status.started
 	
 	//status.firstEventTime = getFirstEventTimeMS(status.lastEventTime)
 	
@@ -906,11 +922,11 @@ def logInitEvents() {
 	
 	state.loggingStatus = status
 
-	def events = getInitEvents()
+	def events = getCurrentEvents()
 	def eventCount = events?.size ?: 0
 	def actionMsg = eventCount > 0 ? ", posting them to ${getWebAppName()}" : ""
 	
-	logDebug "${app.label} SmartThings found initial devices ${String.format('%,d', eventCount)} ${actionMsg}"
+	logDebug "${app.label} found initial devices ${String.format('%,d', eventCount)} ${actionMsg}"
 	
 	if (events) {
 		postEventsToLogger(status, sender, events)
@@ -935,6 +951,9 @@ def logCurrentEvents() {
 	status.eventsArchived = null
 	status.eventsLogged = 0
 	status.started = new Date().time
+	status.lastEventTime = status.started
+	status.fullEventTime = status.started
+
 	
 	//status.firstEventTime = getFirstEventTimeMS(status.lastEventTime)
 	
@@ -943,28 +962,29 @@ def logCurrentEvents() {
 	//def startDate = new Date(status.firstEventTime + 1000)
 	//def endDate = new Date(status.lastEventTime)
 	
+	status.fullEventTime = status.started
 	state.loggingStatus = status
 
 	def events = getCurrentEvents()
 	def eventCount = events?.size ?: 0
 	def actionMsg = eventCount > 0 ? ", posting them to ${getWebAppName()}" : ""
 	
-	logDebug "${app.label} SmartThings found current devices states ${String.format('%,d', eventCount)} ${actionMsg}"
+	logDebug "${app.label} found current devices states ${String.format('%,d', eventCount)} ${actionMsg}"
 	
 	if (events) {
-		postEventsToLogger(status, sender, events)
-	}
-	else {		
+		postEventsToLogger(status, sender, events)	
+	} else {		
 		state.loggingStatus.success = true
-		state.loggingStatus.finished = new Date().time
+		state.loggingStatus.finished = new Date().time		
 	}
+	
 }
 def logNewEvents() {	
 	def sender = 'newEvents'
 	logTrace "${app.label} logNewEvents start"
 	def status = state.loggingStatus ?: [:]
 	
-	// Move the date range to the next position unless the google script failed last time or was skipped due to the sheet being archived.
+	// Move the date range to the next position unless the script failed last time or was skipped due to the sheet being archived.
 	if (!status.success || status.eventsArchived) {
 		status.lastEventTime = status.firstEventTime
 	}
@@ -975,9 +995,7 @@ def logNewEvents() {
 	status.eventsLogged = 0
 	status.started = new Date().time
 	status.lastEventTime = status?.lastEventTime ?: 0
-	
 	status.firstEventTime = getFirstEventTimeMS(status.lastEventTime)
-	
 	status.lastEventTime = getNewLastEventTimeMS(status.started, (status.firstEventTime + 1000))
 	
 	def startDate = new Date(status.firstEventTime + 1000)
@@ -991,7 +1009,7 @@ def logNewEvents() {
 	def eventCount = events?.size ?: 0
 	def actionMsg = eventCount > 0 ? ", posting them to ${getWebAppName()}" : ""
 	
-	logDebug "${app.label} SmartThings found ${String.format('%,d', eventCount)} events for status.interval interval, between ${getFormattedLocalTime(startDate.time)} and ${getFormattedLocalTime(endDate.time)}${actionMsg}"
+	logDebug "${app.label} SmartThings found ${String.format('%,d', eventCount)} events for ${status.interval} interval, from ${new Date(startDate.time)} ${actionMsg}"
 	
 	if (events) {
 		postEventsToLogger(status, sender, events)
@@ -1001,45 +1019,101 @@ def logNewEvents() {
 		state.loggingStatus.finished = new Date().time
 	}
 }
+
 // uploading events
+def processLogEventsResponse(response, data) {
+	logTrace "${app.label} processLogEventsResponse started: ${response?.status}"
+	if (response?.status == 200) {
+		//logTrace "${app.label} ${getWebAppName()} response.status: ${response.status}, response.data: ${response.data}"
+		state.loggingStatus.success = true
+		state.loggingStatus.finished = new Date().time
+	} else if (response?.status == 301) {
+		state.loggingStatus.details = "${response?.status}, check your URL settings"
+		logTrace "${app.label} Response: ${state.loggingStatus.details}"
+	} else if (response?.status == 302) {
+		state.loggingStatus.details = "${response?.status}, check your URL settings"
+		logTrace "${app.label} Response: ${state.loggingStatus.details}"
+	} else if (response?.status == 402) {
+		state.loggingStatus.details = "you are using extended features requiring payment. Reporting interval was switched to 600 secs. Response: ${response?.status}, ${response?.errorMessage}"
+		
+		try{
+			def interval = new Date(status?.end) - new Date(status?.start)
+			def logFrequency = settings?.logFrequency
+		}catch(err){
+			logTrace "${app.label} [processLogEventsResponse err] interval: ${err}, status: ${status}"
+		}
+/* 		if (logFrequency != "10 Minutes")
+			logFrequency = 10 */
+
+		logTrace "${app.label} [processLogEventsResponse] interval ${interval} ${logFrequency}"
+		
+		//unschedule(logNewEvents)
+		//runEvery10Minutes(logNewEvents)
+
+	} else if (response?.status == 408) {
+		state.loggingStatus.details = "${response?.status}, ${response?.errorMessage}"
+	} else if (response?.status == 429) {
+		state.loggingStatus.details "${response?.status}, ${response?.errorMessage}"
+        //logWarn "${app.label} ${getWebAppName()} [processLogEventsResponse]2 Response.data: ${response.errorJson}"
+	} else if (response?.status == 501) {
+		state.loggingStatus.details = "${response?.status}. Timeout while waiting for a server"
+	} else {
+		state.loggingStatus.details = "${response?.status}, response.data: ${response?.data}, ${response?.errorMessage}"
+	}
+	logTrace "${app.label} Response: ${response?.status}"
+	//logTrace "${app.label} ${getWebAppName()} response.status: ${response.status} "
+	updateLoggingStatus(state, response)
+}
 private postEventsToLogger(status, sender, events) {
-	def hub = location.hubs[0]
+	def hub = location.hub
+	logTrace "${app.label} Hub: ${hub}/${hub?.id}/${hub?.hardwareID}/${hub?.zigbeeId} data: ${hub?.data}  "
 	def jsonOutput = new groovy.json.JsonOutput()
-	def jsonData = jsonOutput.toJson([
+	def jsonData = [		
+		version: "${version()}",
+		app: "${appName()}",
+        hubId: "${hub.zigbeeId}",
 		apiKey: settings?.apiKey,
 		node: settings?.node,
-		app: state.app,
-		version: "${version()}",
-        hubId: "${hub.id}",
 		sender: sender,
         interval: settings?.logFrequency,
-		current: status?.firstEventTime,
-		lastfull: status?.lastEventTime,
+		current: status?.lastEventTime, //new events collected to that time
+		lastnew: status?.firstEventTime, //new events collected from that time
+		lastfull: status?.fullEventTime, //last time we have collected everything
 		//postBackUrl: "${state.endpoint}logger",
 		//archiveOptions: getArchiveOptions(),
 		//logDesc: (settings?.logDesc != false),
 		logReporting: (settings?.logReporting == true),
-		//deleteExtraColumns: (settings?.deleteExtraColumns == true),
+		//deleteExtraColumns: (settings?.deleteExtraColumns == true),m
 		events: events
-	])
+	]
+	//jsonData = JsonOutput.toJson(jsonData)
 
 	def params = [
 		//uri: "${settings?.googleWebAppUrl}",
 		uri: "${settings?.loggerAppUrl}",
-		contentType: "application/json",
+		requestContentType: 'application/json',
+		contentType: "application/json; charset=utf-8",
 		body: jsonData
 	]	
 	
 	logTrace("${app.label} [postEventsToLogger] params: ${params}")
-	asynchttp_v1.post(processLogEventsResponse, params)
+	//asynchttp_v1.post(processLogEventsResponse, params)
+	try {
+		asynchttpPost('processLogEventsResponse', params, null) 
+	} catch (Exception e) {
+        logDebug("httpPost() failed: ${e}")
+        if(throwToCaller){
+            throw(e)
+        }		
+	}
+	
 }
 
 
 private getEventDesc(event) {
 	if (settings?.useValueUnitDesc != false) {
 		return "${event.value}" + (event.unit ? " ${event.unit}" : "")
-	}
-	else {
+	} else {
 		def desc = "${event?.descriptionText}"
 		if (desc.contains("{")) {
 			desc = replaceToken(desc, "linkText", event.displayName)
@@ -1249,38 +1323,53 @@ private getCapabilities() {
 	]
 }
 
-// private averageSupportedAttributes() {
-	// [
-		// "battery",
-		// "carbonDioxide",
-		// "colorTemperature",
-		// "coolingSetpoint",
-		// "energy",
-		// "heatingSetpoint",
-		// "humidity",
-		// "illuminance",
-		// "level",
-		// "lqi",
-		// "pH",
-		// "power",
-		// "rssi",
-		// "soundPressureLevel",
-		// "temperature",
-		// "thermostatSetpoint",
-		// "ultravioletIndex",
-		// "voltage"
-	// ]
-// }
+private getRooms() {
+/* 	def rooms = []
+	getCapabilities()?.each {	
+		try {
+			if (it.cap && settings?."${it.cap}Pref") {
+				devices << settings?."${it.cap}Pref"
+			}
+		}
+		catch (e) {
+			logWarn "Error while getting selected devices for capability ${it}: ${e.message}"
+		}
+	}	
+	return devices?.flatten()?.unique { it.displayName } */
+}
 
-// private getArchiveTypeOptions() {
-	// [
-		// [name: "None"],
-		// [name: "Out of Space"],
-		// [name: "Weeks", defaultVal: 2, range: "1..52"],
-		// [name: "Events", defaultVal: 25000, range: "1000..100000"]
-	// ]
-// }
+/* private averageSupportedAttributes() {
+	[
+		"battery",
+		"carbonDioxide",
+		"colorTemperature",
+		"coolingSetpoint",
+		"energy",
+		"heatingSetpoint",
+		"humidity",
+		"illuminance",
+		"level",
+		"lqi",
+		"pH",
+		"power",
+		"rssi",
+		"soundPressureLevel",
+		"temperature",
+		"thermostatSetpoint",
+		"ultravioletIndex",
+		"voltage"
+	]
+} */
 
+/* private getArchiveTypeOptions() {
+	[
+		[name: "None"],
+		[name: "Out of Space"],
+		[name: "Weeks", defaultVal: 2, range: "1..52"],
+		[name: "Events", defaultVal: 25000, range: "1000..100000"]
+	]
+}
+ */
 
 private getWebAppName() {
 	return "HundredGraph Logger"
