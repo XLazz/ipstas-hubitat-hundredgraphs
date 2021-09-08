@@ -69,6 +69,15 @@ definition(
     iconX2Url: "https://res.cloudinary.com/orangry/image/upload/c_scale,w_60/v1554557246/hundredgraphs/HundredGraphs_620x620.png",
     iconX3Url: "https://res.cloudinary.com/orangry/image/upload/c_scale,w_100/v1554557246/hundredgraphs/HundredGraphs_620x620.png"
 )
+
+def appName(){ 
+	return "Hubitat"
+}
+def version(){	
+	return "00.00.15"
+}
+def hubId = getHubUID()
+def hubLocation = getLocation()
 		
 preferences {
 	page(name: "mainPage")
@@ -78,13 +87,6 @@ preferences {
 	page(name: "optionsPage")
 	page(name: "aboutPage")
 	//page(name: "createTokenPage")
-}
-
-def appName(){ 
-	return "Hubitat"
-}
-def version(){	
-	return "00.00.14"
 }
 
 //def gsVersion() { return "00.00.01" }
@@ -128,17 +130,15 @@ def mainPage() {
 				// defaultValue: "HundredGraphs Logger",
 				// required: false
 			label title: "Assign a name", defaultValue: "HundredGraphs Logger", required: false
-			mode title: "Set for specific mode(s)", required: false
-			if (state.installed) {		
-				
+			mode title: "Set for specific mode(s)", required: true
+			if (state.installed) {					
 				href(name: "graphs",
 				title: "View your Graphs",
 				//paragraph image: "https://res.cloudinary.com/orangry/image/upload/v1554557246/hundredgraphs/HundredGraphs_620x620.png",
 				required: false,
 				style: "external",
 				url: "https://www.hundredgraphs.com/dashboard",
-				description: "View your graphs and feeds on HundredGraphs.com")
-				
+				description: "View your graphs and feeds on HundredGraphs.com") 
 				getPageLink("aboutPageLink", "About HundredGraphs Logger", "aboutPage", null, "Tap to view documentation, version and additional information.", "https://res.cloudinary.com/orangry/image/upload/v1554557246/hundredgraphs/HundredGraphs_620x620.png")
                 //Feed result: response?.status
 			}
@@ -152,17 +152,26 @@ def mainPage() {
 
 private getLoggingStatusContent() {
 	//logTrace "${app.label} [getLoggingStatusContent] success: ${state.loggingStatus?.success}, state: ${state}"
+	if (state.allConfigured == true) {
+        section("Configured") {		
+        	paragraph required: false,
+				"All done: Version: ${version()}" 
+        }
+	} else {
+        section("Configured") {		
+        	paragraph required: false,
+				"some configuration missed" 
+        }		
+	}
 	if (state.loggingStatus?.success == true) {
     	def status = getFormattedLoggingStatus();
         //state.loggingStatus?.success = false
     	//logDebug "${app.label} [getLoggingStatusContent] success: ${state.loggingStatus?.success}, state: ${state}, status: ${status}"
         section("Logging Status") {		
-        	paragraph required: false,
-				"Version: ${version()}"
             paragraph required: false,
 				"Upload: ${status?.result}"
             paragraph required: false,
-				"Events Logged: ${status.eventsLogged} \nLast Execution:\n - HTTP code: ${status.code}\n - Events From: ${status.start}\n - Events To: ${status.end}\n - Run Time: ${status.runTime}\n - count: ${status.count}"    
+				"Events Logged: ${status.eventsLogged} \nLast Execution:\n - HTTP code: ${status.code}\n - Events From: ${status.start}\n - Events To: ${status.end}\n - Run Time: ${status.runTime}\n - count: ${status.count}"  
         }
 	} else {
     	def status = getFormattedLoggingStatus();
@@ -346,10 +355,10 @@ private getOptionsPageContent() {
 			title: "Log Event Descripion?",
 			defaultValue: true,
 			required: false
-		input "useValueUnitDesc", "bool",
-			title: "Use Value and Unit for Description?",
-			defaultValue: false,
-			required: false
+		// input "useValueUnitDesc", "bool",
+			// title: "Use Value and Unit for Description?",
+			// defaultValue: false,
+			// required: false
 		// input "logReporting", "bool",
 			// title: "Include additional columns for short date and hour?",
 			// defaultValue: false,
@@ -462,6 +471,7 @@ def uninstalled() {
 
 def installed() {	
 	logInfo "${app.label} installed"
+	hubInfo()
 	//initializeAppEndpoint()
 	state.installed = true
 }
@@ -474,7 +484,8 @@ def updated() {
 	
 	//initializeAppEndpoint()
 	
-	logInfo "${app.label} [updated] freq: ${settings?.logFrequency}, url: ${settings?.loggerAppUrl}"	
+	logInfo "${app.label} [updated] freq: ${settings?.logFrequency}, url: ${settings?.loggerAppUrl}"
+	hubInfo()
 	state.app = "Hubitat"
 
 	//state.version = ${version()}
@@ -611,6 +622,7 @@ def hubInfo(){
     def hub = location.hubs[0]
 
     logWarn "${app.label} hub id: ${hub.id}"
+    logWarn "${app.label} hub UID: ${hubId}"
     logWarn "${app.label} zigbeeId: ${hub.zigbeeId}"
     logWarn "${app.label} zigbeeEui: ${hub.zigbeeEui}"
 
@@ -621,6 +633,7 @@ def hubInfo(){
     logWarn "${app.label} firmwareVersionString: ${hub.firmwareVersionString}"
     logWarn "${app.label} localIP: ${hub.localIP}"
     logWarn "${app.label} localSrvPortTCP: ${hub.localSrvPortTCP}"
+    logWarn "${app.label} location: ${location?.zipCode}"
 	logWarn "${app.label} Executing installed()"
     return hub
 }
@@ -641,7 +654,7 @@ private initializeAppEndpoint() {
 			logDebug "${app.label} Creating Access Token"
 			def accessToken = createAccessToken()
 			if (accessToken) {
-				state.endpoint = apiServerUrl("/api/token/${accessToken}/smartapps/installations/${app.id}/")
+				state.endpoint = apiServerUrl("/api/token/${accessToken}/smartapps/installations/${app.id}")
 			}
 		}		
 	} 
@@ -779,16 +792,18 @@ private getInitEvents() {
 			//logTrace "checking device: ${device?.displayName} ${attr} ${device?.device}"
 			device.currentState("${attr}")?.each { event ->
 				events << [
-					time: event.date?.time,
-					//time: event.date,
-					id: device.id,
-					type: "${attr}",
-					roomNum: device.device.groupId,
-					//roomName: device?.group,
-					key: device.displayName,
-					value: event.value,
-					desc: getEventDesc(event)
-				]
+						//time: event.date?.time,
+						time: event.date,
+						id: device.deviceNetworkId,
+						key: device.name,
+						type: "${attr}",					
+						//roomName: device.device.roomId,
+						
+						value: event.value,
+						unit: event.unit,
+						roomNum: device?.device?.groupId,
+						desc: getEventDesc(event),
+					]
 			}
 		}
 	}
@@ -810,15 +825,18 @@ private getCurrentEvents() {
 			//logTrace "checking device: ${device?.displayName} ${attr} ${device?.device}"
 			device.currentState("${attr}")?.each { event ->
 				events << [
-					time: new Date(),
-					id: device.id,
-					type: "${attr}",
-					roomNum: device.device.groupId,
-					//roomName: device?.group,
-					key: device.displayName,
-					value: event.value,
-					desc: getEventDesc(event)
-				]
+						//time: event.date?.time,
+						time: event.date,
+						id: device.deviceNetworkId,
+						key: device.name,
+						type: "${attr}",					
+						//roomName: device.device.roomId,
+						
+						value: event.value,
+						unit: event.unit,
+						roomNum: device?.device?.groupId,
+						desc: getEventDesc(event),
+					]
 			}
 		}
 	}
@@ -1019,7 +1037,16 @@ def logNewEvents() {
 		state.loggingStatus.finished = new Date().time
 	}
 }
-
+def logExtra(){
+	def geoData = [
+		longitude: location?.longitude,
+		latitude: location?.latitude,
+		city: location?.zipCode,
+		timezone: location?.timeZone,			
+		tempFormat: location?.temperatureScale,
+	]	
+	return geoData
+}
 // uploading events
 def processLogEventsResponse(response, data) {
 	logTrace "${app.label} processLogEventsResponse started: ${response?.status}"
@@ -1065,13 +1092,14 @@ def processLogEventsResponse(response, data) {
 }
 private postEventsToLogger(status, sender, events) {
 	def hub = location.hubs[0]
-	def hub.hubid = hubUID
-	logTrace "${app.label} Hub: ${hub}/${hub?.id}/${hub?.hardwareID}/${hub?.zigbeeId}/${hub?.hubid} data: ${hub?.data} "
+	//hub.hubid = hubUID
+	logTrace "${app.label} Hub: ${hub}/${hub?.id}/${hub?.hardwareID}/${hub?.zigbeeId}/${hubId} data: ${hub?.data} "
 	def jsonOutput = new groovy.json.JsonOutput()
 	def jsonData = [		
 		version: "${version()}",
 		app: "${appName()}",
-        hubId: "${hub.zigbeeId}",
+        hubId: "${hubId}",
+		location: "${getLocation()}",
 		apiKey: settings?.apiKey,
 		node: settings?.node,
 		sender: sender,
@@ -1083,6 +1111,7 @@ private postEventsToLogger(status, sender, events) {
 		//archiveOptions: getArchiveOptions(),
 		//logDesc: (settings?.logDesc != false),
 		logReporting: (settings?.logReporting == true),
+		geo: "${logExtra()}",
 		//deleteExtraColumns: (settings?.deleteExtraColumns == true),m
 		events: events
 	]
@@ -1111,10 +1140,12 @@ private postEventsToLogger(status, sender, events) {
 
 
 private getEventDesc(event) {
-	if (settings?.useValueUnitDesc != false) {
+	return "${event.value}" + (event.unit ? " ${event.unit}" : "")
+/* 	if (settings?.useValueUnitDesc != false) {
 		return "${event.value}" + (event.unit ? " ${event.unit}" : "")
 	} else {
-		def desc = "${event?.descriptionText}"
+		logTrace("getEventDesc event: ${event}")
+		def desc = "${event?.description}"
 		if (desc.contains("{")) {
 			desc = replaceToken(desc, "linkText", event.displayName)
 			desc = replaceToken(desc, "displayName", event.displayName)
@@ -1123,7 +1154,7 @@ private getEventDesc(event) {
 			desc = replaceToken(desc, "unit", event.unit)
 		}
 		return desc
-	}
+	} */
 }
 
 private replaceToken(desc, token, value) {
@@ -1384,7 +1415,6 @@ private loggerUrlDev() {
 
 private getWebAppBaseUrl() {
 	return "https://www.hundredgraphs.com/hook/"
-	//return "https://script.google.com/macros/s/"
 }
 
 long safeToLong(val, defaultVal=0) {
