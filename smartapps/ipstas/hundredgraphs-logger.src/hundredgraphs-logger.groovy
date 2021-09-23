@@ -74,7 +74,7 @@ def appName(){
 	return "Hubitat"
 }
 def version(){	
-	return "00.00.15"
+	return "00.00.16"
 }
 def hubId = getHubUID()
 def hubLocation = getLocation()
@@ -790,12 +790,13 @@ private getInitEvents() {
 	getSelectedDevices()?.each  { device ->
 		getDeviceAllowedAttrs(device?.displayName)?.each { attr ->
 			//logTrace "checking device: ${device?.displayName} ${attr} ${device?.device}"
+			def key = device?.displayName || device.name
 			device.currentState("${attr}")?.each { event ->
 				events << [
 						//time: event.date?.time,
 						time: event.date,
 						id: device.deviceNetworkId,
-						key: device.name,
+						key: device?.displayName,
 						type: "${attr}",					
 						//roomName: device.device.roomId,
 						
@@ -822,13 +823,14 @@ private getCurrentEvents() {
 	
 	getSelectedDevices()?.each  { device ->
 		getDeviceAllowedAttrs(device?.displayName)?.each { attr ->
+			def key = device?.displayName || device.name
 			//logTrace "checking device: ${device?.displayName} ${attr} ${device?.device}"
 			device.currentState("${attr}")?.each { event ->
 				events << [
 						//time: event.date?.time,
 						time: event.date,
 						id: device.deviceNetworkId,
-						key: device.name,
+						key: device?.displayName,
 						type: "${attr}",					
 						//roomName: device.device.roomId,
 						
@@ -866,6 +868,7 @@ private getNewEvents(startDate, endDate) {
 		getDeviceAllowedAttrs(device?.displayName)?.each { attr ->		
 			//def states = device.statesSince("${attr}", new Date(0))
 			def states = device.statesSince("${attr}", startDate)
+			def key = device?.displayName || device.name
 			//def states = device.statesSince("${attr}", startDate, [max: maxEventsSetting])
 			//logTrace "checking states ${device?.displayName} states: ${states}"
 			states?.each { event ->
@@ -882,7 +885,7 @@ private getNewEvents(startDate, endDate) {
 						//time: event.date?.time,
 						time: event.date,
 						id: device.deviceNetworkId,
-						key: device.name,
+						key: device?.displayName,
 						type: "${attr}",					
 						//roomName: device.device.roomId,
 						
